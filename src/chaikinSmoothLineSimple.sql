@@ -1,22 +1,27 @@
 -- A simple method that smooth out line by recducing the angle betwwen line segments
 
---DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(_geom geometry,int);
+DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(geometry,int);
+DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(geometry(LineString),int);
 
-CREATE OR replace FUNCTION chaikinSmoothLineSimple(_geom geometry,_nIterations int default 1 ) 
+CREATE OR replace FUNCTION chaikinSmoothLineSimple(_input_line geometry(LineString),_nIterations int default 1 ) 
 returns geometry 
 AS $$DECLARE 
-simplfied_geom GEOMETRY;
+simplfied_line geometry(LineString);
 num_points int;
 counter int = 0;
 BEGIN
 
-simplfied_geom := _geom;
+IF (ST_GeometryType(_input_line) != 'ST_LineString' ) THEN
+	RAISE EXCEPTION 'Invalid GeometryType(_input_line) %', ST_input_lineetryType(_input_line);
+END IF;
+
+simplfied_line := _input_line;
 
 -- loop max 5 times
 FOR counter IN 1.._nIterations LOOP
- num_points := st_numpoints(simplfied_geom); 
- simplfied_geom := st_linefrommultipoint(mp) FROM ( 
- SELECT ST_RemoveRepeatedPoints(st_collect(mp)) AS mp 
+ num_points := st_numpoints(simplfied_line); 
+ simplfied_line := st_linefrommultipoint(mp) FROM ( 
+ SELECT st_collect(mp) AS mp 
  FROM ( 
   SELECT unnest(array[p1,p1_n,p2_n,p2]) AS mp 
   FROM ( 
@@ -45,7 +50,7 @@ FOR counter IN 1.._nIterations LOOP
       (dp).geom AS p1,
       lead((dp).geom) OVER () AS p2
       FROM ( 
-       SELECT st_dumppoints(simplfied_geom) AS dp 
+       SELECT st_dumppoints(simplfied_line) AS dp 
        ) AS r 
       ) AS r 
      ) AS r 
@@ -53,10 +58,14 @@ FOR counter IN 1.._nIterations LOOP
    ) AS r 
   ) AS r 
  ) AS r;
-END LOOP;
  
-return simplfied_geom; 
+END LOOP;
+
+-- how to avoid this ??
+simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
+
+return simplfied_line; 
 end;
-$$ language plpgsql immutable;
+$$ language plpgsql immutable strict;
 
 --select ST_AsText(chaikinSmoothLineSimple('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
