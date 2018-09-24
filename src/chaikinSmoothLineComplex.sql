@@ -3,8 +3,12 @@
 -- This a way avoid cutting corners and not adding unessary points.  
 
 
+
 DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_input_line geometry,int,int,numeric,int );
 DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_input_line geometry(LineString),int,int,numeric,int );
+
+DROP TYPE chaikinSmoothLineComplex_dumpType;
+CREATE TYPE chaikinSmoothLineComplex_dumpType AS (path int,geom geometry);
 
 CREATE OR REPLACE FUNCTION chaikinSmoothLineComplex(
 _input_line geometry(LineString),
@@ -21,6 +25,9 @@ need_to_fix_index int[];
 num_points int;
 counter int = 0;
 simplfied_line geometry(LineString);
+
+simplfied_line_dump chaikinSmoothLineComplex_dumpType ARRAY;
+
 BEGIN
 
 IF (ST_GeometryType(_input_line) != 'ST_LineString' ) THEN
@@ -37,6 +44,12 @@ FOR counter IN 1.._nIterations LOOP
 	RAISE EXCEPTION 'To many Iterations %', _nIterations;
  END IF;
 
+
+ select (dp).path,(dp).geom  into simplfied_line_dump
+ FROM (
+  SELECT ST_DumpPoints(simplfied_line) as dp
+ ) as r;
+ 
  select array_agg(org_index) into need_to_fix_index from (
   select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
   --select 100 as angle, 1 as org_index
@@ -67,6 +80,7 @@ FOR counter IN 1.._nIterations LOOP
  -- get new simplfied geom
  simplfied_line := ST_LineFromMultiPoint(mp) FROM (
   SELECT ST_Collect(mp) as mp FROM (
+  -- how to avoid equal points ??
     SELECT unnest(ARRAY[p1,p1_n,p2_n,p2]) as mp FROM (
      SELECT 
      CASE WHEN org_index=1 THEN 
