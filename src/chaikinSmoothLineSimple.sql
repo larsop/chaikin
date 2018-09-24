@@ -1,6 +1,8 @@
 -- A simple method that smooth out line by recducing the angle betwwen line segments
 
-CREATE OR replace FUNCTION chaikinSmoothLineSimple(_geom geometry,_nIterations int default 5 ) 
+--DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(_geom geometry,int);
+
+CREATE OR replace FUNCTION chaikinSmoothLineSimple(_geom geometry,_nIterations int default 1 ) 
 returns geometry 
 AS $$DECLARE 
 simplfied_geom GEOMETRY;
