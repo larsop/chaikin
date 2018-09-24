@@ -28,8 +28,14 @@ IF (ST_GeometryType(_input_line) != 'ST_LineString' ) THEN
 END IF;
  
 simplfied_line := _input_line;
-	
+
+
 FOR counter IN 1.._nIterations LOOP
+
+ -- loop max 20 times
+ IF (counter > 20) THEN
+	RAISE EXCEPTION 'To many Iterations %', _nIterations;
+ END IF;
 
  select array_agg(org_index) into need_to_fix_index from (
   select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
@@ -136,4 +142,4 @@ return simplfied_line;
 END; 
 $$ LANGUAGE plpgsql IMMUTABLE strict;
 
---select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
+select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));

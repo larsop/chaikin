@@ -4,7 +4,7 @@ DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(geometry,int);
 DROP FUNCTION IF EXISTS chaikinSmoothLineSimple(geometry(LineString),int);
 
 CREATE OR replace FUNCTION chaikinSmoothLineSimple(_input_line geometry(LineString),_nIterations int default 1 ) 
-returns geometry 
+returns geometry(LineString) 
 AS $$DECLARE 
 simplfied_line geometry(LineString);
 num_points int;
@@ -15,10 +15,15 @@ IF (ST_GeometryType(_input_line) != 'ST_LineString' ) THEN
 	RAISE EXCEPTION 'Invalid GeometryType(_input_line) %', ST_input_lineetryType(_input_line);
 END IF;
 
+-- loop max 5 times
+IF (_nIterations > 5) THEN
+	RAISE EXCEPTION 'To many Iterations %', _nIterations;
+END IF;
+
 simplfied_line := _input_line;
 
--- loop max 5 times
 FOR counter IN 1.._nIterations LOOP
+
  num_points := st_numpoints(simplfied_line); 
  simplfied_line := st_linefrommultipoint(mp) FROM ( 
  SELECT st_collect(mp) AS mp 
@@ -67,5 +72,7 @@ simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
 return simplfied_line; 
 end;
 $$ language plpgsql immutable strict;
+\timing
 
---select ST_AsText(chaikinSmoothLineSimple('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
+select ST_AsText('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841');
+select ST_AsText(chaikinSmoothLineSimple('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841',5));
