@@ -3,6 +3,8 @@
 -- This a way avoid cutting corners and not adding unessary points.  
 
 
+--DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_geom geometry,_min_degrees,_max_degrees,_max_distance,_nIterations );
+
 CREATE OR REPLACE FUNCTION chaikinSmoothLineComplex(
 _geom geometry,
 _min_degrees int default 90,
@@ -13,7 +15,7 @@ _nIterations int default 5
 RETURNS geometry AS $$
 DECLARE
 --_geom geometry;
-sharp_angle_index int[];
+need_to_fix_index int[];
 --dump_point_list geometry_dump[];
 num_points int;
 counter int = 0;
@@ -22,7 +24,7 @@ BEGIN
 -- loop max 5 times, will this ever happen
 FOR counter IN 1..5 LOOP
 
- select array_agg(org_index) into sharp_angle_index from (
+ select array_agg(org_index) into need_to_fix_index from (
   select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
   --select 100 as angle, 1 as org_index
   from (
@@ -38,9 +40,10 @@ FOR counter IN 1..5 LOOP
   ) as r where azimuth_1 is not null and azimuth_2 is not null 
  ) as r where angle <= _min_degrees or angle >= _max_degrees;
 
+ --RAISE NOTICE 'need_to_fix_index aaa %', need_to_fix_index;
  
  -- if there are no sharp angles use return input as it is
- IF sharp_angle_index IS NULL THEN
+ IF need_to_fix_index IS NULL THEN
   EXIT;
  END IF ;
 
@@ -57,7 +60,7 @@ FOR counter IN 1..5 LOOP
  
  -- get new simplfied geom
  _geom := ST_LineFromMultiPoint(mp) FROM (
-  SELECT ST_Collect(mp) as mp FROM (
+  SELECT ST_RemoveRepeatedPoints(ST_Collect(mp)) as mp FROM (
     SELECT unnest(ARRAY[p1,p1_n,p2_n,p2]) as mp FROM (
      SELECT 
      CASE WHEN org_index=1 THEN 
@@ -98,11 +101,11 @@ FOR counter IN 1..5 LOOP
        FROM (
         SELECT 
         r.*,
-        CASE WHEN org_index = ANY(sharp_angle_index) OR (org_index-1) = ANY(sharp_angle_index) THEN 
+        CASE WHEN org_index = ANY(need_to_fix_index) OR (org_index-1) = ANY(need_to_fix_index) THEN 
          true
          ELSE false
         END as use_p1_n,
-        CASE WHEN org_index = ANY(sharp_angle_index) OR (org_index+1) = ANY(sharp_angle_index) THEN 
+        CASE WHEN org_index = ANY(need_to_fix_index) OR (org_index+1) = ANY(need_to_fix_index) THEN 
          true
          ELSE false
         END as use_p2_n
@@ -130,3 +133,5 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 --select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
+
+

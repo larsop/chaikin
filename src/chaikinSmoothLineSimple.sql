@@ -14,7 +14,7 @@ simplfied_geom := _geom;
 FOR counter IN 1.._nIterations LOOP
  num_points := st_numpoints(simplfied_geom); 
  simplfied_geom := st_linefrommultipoint(mp) FROM ( 
- SELECT st_collect(mp) AS mp 
+ SELECT ST_RemoveRepeatedPoints(st_collect(mp)) AS mp 
  FROM ( 
   SELECT unnest(array[p1,p1_n,p2_n,p2]) AS mp 
   FROM ( 
