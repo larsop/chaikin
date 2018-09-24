@@ -3,14 +3,14 @@
 -- This a way avoid cutting corners and not adding unessary points.  
 
 
---DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_geom geometry,_min_degrees,_max_degrees,_max_distance,_nIterations );
+--DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_geom geometry,int,int,numeric,int );
 
 CREATE OR REPLACE FUNCTION chaikinSmoothLineComplex(
 _geom geometry,
 _min_degrees int default 90,
 _max_degrees int default 270,
 _max_distance numeric default 40.0,
-_nIterations int default 5 
+_nIterations int default 1 
 )
 RETURNS geometry AS $$
 DECLARE
@@ -22,7 +22,7 @@ counter int = 0;
 BEGIN
 
 -- loop max 5 times, will this ever happen
-FOR counter IN 1..5 LOOP
+FOR counter IN 1.._nIterations LOOP
 
  select array_agg(org_index) into need_to_fix_index from (
   select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
