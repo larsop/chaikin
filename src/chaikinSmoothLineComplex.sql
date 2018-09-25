@@ -41,14 +41,18 @@ FOR counter IN 1.._nIterations LOOP
  END IF;
 
 WITH 
-rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS lead_p, (dp).geom As p1,  lag((dp).geom) OVER () AS lag_p
- FROM (
-  SELECT ST_DumpPoints(simplfied_line) as dp
- ) as db
- )
-      
- select array_agg(org_index) into need_to_fix_index from (
-  select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
+ rdb_temp_table AS 
+ ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS lead_p, (dp).geom As p1,  lag((dp).geom) OVER () AS lag_p
+  FROM (
+   SELECT ST_DumpPoints(simplfied_line) as dp
+  ) as db
+ )    
+ ,
+ need_to_fix_index AS 
+ (SELECT array_agg(org_index) from (
+  select 
+  abs(degrees(azimuth_1-azimuth_2)) as angle, 
+  org_index
   --select 100 as angle, 1 as org_index
   from (
    SELECT org_index, 
@@ -59,11 +63,10 @@ rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS
    where not ST_Equals(lead_p,p1) and not ST_Equals(p1,lag_p) and
    ST_distance(lead_p, p1) < _max_distance and ST_distance(p1, lag_p) < _max_distance
   ) as r where azimuth_1 is not null and azimuth_2 is not null 
- ) as r where angle <= _min_degrees or angle >= _max_degrees
-
+  ) as r where angle <= _min_degrees or angle >= _max_degrees
+ )
  
- -- get new simplfied geom
- select ST_LineFromMultiPoint(mp) FROM (
+ select ST_LineFromMultiPoint(mp) INTO simplfied_line FROM (
   SELECT ST_Collect(mp) as mp FROM (
   -- how to avoid equal points ??
     SELECT unnest(ARRAY[p1,p1_n,p2_n,lead_p]) as mp FROM (
@@ -120,8 +123,11 @@ rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS
      ) as r
     ) as r
    ) as r
-  ) as r
-  INTO simplfied_line;
+  ) as r;
+
+  RAISE NOTICE ' simplfied_line  %',  simplfied_line;
+
+  RAISE NOTICE ' need_to_fix_index  %',  need_to_fix_index;
 
   -- how to avoid this ??
   simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
