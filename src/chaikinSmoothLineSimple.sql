@@ -66,9 +66,6 @@ FOR counter IN 1.._nIterations LOOP
  
 END LOOP;
 
--- how to avoid this ??
-simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
-
 return simplfied_line; 
 end;
 $$ language plpgsql immutable strict;
