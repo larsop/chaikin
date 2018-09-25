@@ -18,7 +18,9 @@ _nIterations int default 1
 RETURNS geometry(LineString) AS $$
 DECLARE
 --simplfied_line geometry;
-need_to_fix_index int[];
+--need_to_fix_index int[];
+need_to_fix_index_out int[];
+
 --dump_point_list geometry_dump[];
 num_points int;
 counter int = 0;
@@ -33,7 +35,7 @@ END IF;
  simplfied_line = _input_line;
  
 
-FOR counter IN 1.._nIterations LOOP
+--FOR counter IN 1.._nIterations LOOP
 
  -- loop max 20 times
  IF (counter > 20) THEN
@@ -47,9 +49,10 @@ WITH
    SELECT ST_DumpPoints(simplfied_line) as dp
   ) as db
  )    
- ,
+
+,
  need_to_fix_index AS 
- (SELECT array_agg(org_index) from (
+ (SELECT org_index as index_value from (
   select 
   abs(degrees(azimuth_1-azimuth_2)) as angle, 
   org_index
@@ -65,8 +68,10 @@ WITH
   ) as r where azimuth_1 is not null and azimuth_2 is not null 
   ) as r where angle <= _min_degrees or angle >= _max_degrees
  )
- 
- select ST_LineFromMultiPoint(mp) INTO simplfied_line FROM (
+
+--select index_value INTO need_to_fix_index_out  FROM need_to_fix_index;
+
+select ST_LineFromMultiPoint(mp) INTO simplfied_line  FROM (
   SELECT ST_Collect(mp) as mp FROM (
   -- how to avoid equal points ??
     SELECT unnest(ARRAY[p1,p1_n,p2_n,lead_p]) as mp FROM (
@@ -109,11 +114,11 @@ WITH
        FROM (
         SELECT 
         r.*,
-        CASE WHEN org_index = ANY(need_to_fix_index) OR (org_index-1) = ANY(need_to_fix_index) THEN 
+        CASE WHEN exists ( select 1 from need_to_fix_index where r.org_index = index_value OR r.org_index = (index_value-1))  THEN 
          true
          ELSE false
         END as use_p1_n,
-        CASE WHEN org_index = ANY(need_to_fix_index) OR (org_index+1) = ANY(need_to_fix_index) THEN 
+        CASE WHEN exists ( select 1 from need_to_fix_index where r.org_index = index_value OR r.org_index = (index_value+1))  THEN 
          true
          ELSE false
         END as use_p2_n
@@ -123,19 +128,19 @@ WITH
      ) as r
     ) as r
    ) as r
-  ) as r;
+  ) as r
+  ;
+--  RAISE NOTICE ' simplfied_line  %',  simplfied_line;
 
-  RAISE NOTICE ' simplfied_line  %',  simplfied_line;
-
-  RAISE NOTICE ' need_to_fix_index  %',  need_to_fix_index;
+--  RAISE NOTICE ' need_to_fix_index  %',  need_to_fix_index_out;
 
   -- how to avoid this ??
   simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
 
-  if counter >= _nIterations THEN
-   EXIT;
-  END IF;
-END LOOP;
+--  if counter >= _nIterations THEN
+--   EXIT;
+--  END IF;
+--END LOOP;
 
 
 return simplfied_line;
@@ -145,3 +150,5 @@ $$ LANGUAGE plpgsql strict;
 
 select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
 
+SELECT ST_NumPoints(chaikinSmoothLineComplex(ST_Boundary(geo),90,270,10,1)),gid,ST_NumPoints(ST_Boundary(geo)) from org_arstat.ar5_13_flate_s33  
+where gid < 3146540 and gid = 3145544  order by gid;
