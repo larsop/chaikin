@@ -7,6 +7,7 @@
 DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_input_line geometry,int,int,numeric,int );
 DROP FUNCTION IF EXISTS chaikinSmoothLineComplex(_input_line geometry(LineString),int,int,numeric,int );
 
+
 CREATE OR REPLACE FUNCTION chaikinSmoothLineComplex(
 _input_line geometry(LineString),
 _min_degrees int default 90,
@@ -39,14 +40,12 @@ FOR counter IN 1.._nIterations LOOP
 	RAISE EXCEPTION 'To many Iterations %', _nIterations;
  END IF;
 
-   DROP table if exists rdb_temp_table ;
-
-CREATE temp table rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS lead_p, (dp).geom As p1,  lag((dp).geom) OVER () AS lag_p
+WITH 
+rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp).geom) OVER () AS lead_p, (dp).geom As p1,  lag((dp).geom) OVER () AS lag_p
  FROM (
   SELECT ST_DumpPoints(simplfied_line) as dp
  ) as db
- );
-  
+ )
       
  select array_agg(org_index) into need_to_fix_index from (
   select abs(degrees(azimuth_1-azimuth_2)) as angle,org_index
@@ -60,20 +59,11 @@ CREATE temp table rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp
    where not ST_Equals(lead_p,p1) and not ST_Equals(p1,lag_p) and
    ST_distance(lead_p, p1) < _max_distance and ST_distance(p1, lag_p) < _max_distance
   ) as r where azimuth_1 is not null and azimuth_2 is not null 
- ) as r where angle <= _min_degrees or angle >= _max_degrees;
+ ) as r where angle <= _min_degrees or angle >= _max_degrees
 
- RAISE NOTICE 'need_to_fix_index aaa %', need_to_fix_index;
- 
- -- if there are no sharp angles use return input as it is
- IF need_to_fix_index IS NULL THEN
-  EXIT;
- END IF ;
- 
- -- get number of points 
- num_points := ST_NumPoints(simplfied_line);
  
  -- get new simplfied geom
- simplfied_line := ST_LineFromMultiPoint(mp) FROM (
+ select ST_LineFromMultiPoint(mp) FROM (
   SELECT ST_Collect(mp) as mp FROM (
   -- how to avoid equal points ??
     SELECT unnest(ARRAY[p1,p1_n,p2_n,lead_p]) as mp FROM (
@@ -90,7 +80,7 @@ CREATE temp table rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp
       p2_n
       ELSE NULLIF(lead_p, p2_n)
      END as p2_n,
-     CASE WHEN org_index=num_points THEN 
+     CASE WHEN org_index=ST_NumPoints(simplfied_line) THEN 
       lead_p
       ELSE null
      END as lead_p
@@ -130,7 +120,8 @@ CREATE temp table rdb_temp_table AS ( SELECT (dp).path[1] As org_index, lead((dp
      ) as r
     ) as r
    ) as r
-  ) as r;
+  ) as r
+  INTO simplfied_line;
 
   -- how to avoid this ??
   simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
@@ -144,7 +135,7 @@ END LOOP;
 return simplfied_line;
   
 END; 
-$$ LANGUAGE plpgsql LEAKPROOF strict;
+$$ LANGUAGE plpgsql strict;
 
 select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
 
