@@ -35,7 +35,7 @@ END IF;
  simplfied_line = _input_line;
  
 
---FOR counter IN 1.._nIterations LOOP
+FOR counter IN 1.._nIterations LOOP
 
  -- loop max 20 times
  IF (counter > 20) THEN
@@ -137,10 +137,10 @@ select ST_LineFromMultiPoint(mp) INTO simplfied_line  FROM (
   -- how to avoid this ??
   simplfied_line := ST_RemoveRepeatedPoints(simplfied_line);
 
---  if counter >= _nIterations THEN
---   EXIT;
---  END IF;
---END LOOP;
+  if counter >= _nIterations THEN
+   EXIT;
+  END IF;
+END LOOP;
 
 
 return simplfied_line;
@@ -148,6 +148,7 @@ return simplfied_line;
 END; 
 $$ LANGUAGE plpgsql strict;
 
+\timing
 select ST_AsText(chaikinSmoothLineComplex('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841'));
 
 SELECT ST_NumPoints(chaikinSmoothLineComplex(ST_Boundary(geo),90,270,10,1)),gid,ST_NumPoints(ST_Boundary(geo)) from org_arstat.ar5_13_flate_s33  
