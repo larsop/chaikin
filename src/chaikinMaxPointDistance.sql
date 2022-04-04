@@ -34,13 +34,6 @@ END IF;
 
  simplfied_line = _input_line;
  
-loop
-
- IF (counter > 2000) THEN
-	RAISE EXCEPTION 'To many Iterations %', counter;
- END IF;
-
-counter := counter + 1;
 num_points_start =  ST_NumPoints(simplfied_line);
 
 WITH 
@@ -58,18 +51,19 @@ WITH
    ELSE ST_distance(p1, lead_p, true) END AS distance
    FROM rdb_temp_table
  )
-select ST_LineFromMultiPoint(mp) INTO simplfied_line FROM (
-  SELECT ST_Collect(mp) as mp FROM (
-	 SELECT unnest(mp) as mp FROM (
+select ST_MakeLine(mp) INTO simplfied_line FROM (
+ SELECT (ST_DumpPoints(ST_Collect(mp))).geom as mp FROM (
 	 select 
 	 CASE 
 	   	WHEN need_to_fix_index.distance > _max_distance THEN 
-	   	ARRAY[p1, ST_LineInterpolatePoint(ST_MakeLine(p1, lead_p),_max_distance/need_to_fix_index.distance)]
+	   	array_append(ARRAY[p1],
+	   		ST_LineInterpolatePoints(ST_MakeLine(p1, lead_p),_max_distance/need_to_fix_index.distance, true)
+	   		)
+	
 	   	ELSE ARRAY[p1]
 	 END as mp
 	  from rdb_temp_table, need_to_fix_index
 	 where rdb_temp_table.org_index = need_to_fix_index.index_value
-	 ) as r
 	 ) as r
 )  as r;
 
@@ -77,15 +71,17 @@ select ST_LineFromMultiPoint(mp) INTO simplfied_line FROM (
 
 num_points_end = ST_NumPoints(simplfied_line);
 
-	if num_points_end = num_points_start  then
-      exit;
-   end if;
-
 RAISE NOTICE ' num_points_start %, num_points_end %  ', num_points_start , num_points_end;
-end loop;
 
 return simplfied_line;
   
 END; 
 $$ LANGUAGE plpgsql strict;
+
+--select ST_AsText('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841');
+--select ST_AsText(chaikinMaxPointDistance('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841',true,1000));
+--select ST_AsText(chaikinMaxPointDistance('0102000020E86400000300000000000000F89023410000000070FD584100000000F89023410000000075FD584100000000109123410000000075FD5841',true,0.5));
+--TODO make tests
+
+
 
